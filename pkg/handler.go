@@ -94,12 +94,17 @@ func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, message
 		return
 	}
 syntaxCheck:
-	_, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
+	syntaxEmbed := &discordgo.MessageEmbed{
 		Title:  resolveHandler.DiscordBotUser.Username,
 		Color:  embedErrorColor,
 		Fields: fields,
-		Footer: &discordgo.MessageEmbedFooter{Text: resolveHandler.syntax},
-	})
+	}
+	if fields == nil || len(fields) == 0 {
+		syntaxEmbed.Description = resolveHandler.syntax
+	} else {
+		syntaxEmbed.Footer = &discordgo.MessageEmbedFooter{Text: resolveHandler.syntax}
+	}
+	_, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, syntaxEmbed)
 	if err != nil {
 		logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not send (syntax) error message")
 	}
