@@ -1,4 +1,4 @@
-package discorddnsbot
+package discord1111resolver
 
 import (
 	"fmt"
