@@ -34,7 +34,7 @@ func main() {
 	if err != nil {
 		logrus.WithError(err).Fatal("could not get information about bot user")
 	}
-	resolveHandler := &discorddnsbot.ResolveHandler{
+	resolveHandler := &discord1111resolver.ResolveHandler{
 		DNSClient:&dns.Client{},
 		DiscordBotUser:user,
 	}
