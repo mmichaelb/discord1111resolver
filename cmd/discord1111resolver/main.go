@@ -12,9 +12,12 @@ import (
 	"github.com/miekg/dns"
 )
 
+var applicationName, version, branch, commit string
+
 var discordToken string
 
 func main() {
+	logrus.WithField("name", applicationName).WithField("version", version).WithField("branch", branch).WithField("commit", commit).Print("starting application...")
 	flag.StringVar(&discordToken, "token", "", "The Discord Bot token which should be used to authenticate with the Discord API.")
 	flag.Parse()
 	// check if a discord API token is provided
