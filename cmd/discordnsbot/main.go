@@ -9,6 +9,7 @@ import (
 	"github.com/mmichaelb/discorddnsbot/pkg"
 	"os/signal"
 	"syscall"
+	"github.com/miekg/dns"
 )
 
 var discordToken string
@@ -29,7 +30,16 @@ func main() {
 	if err := session.Open(); err != nil {
 		logrus.WithError(err).Fatal("could not open Discord session")
 	}
-	session.AddHandler(discorddnsbot.NewDNSRequestHandler("!dns").Handle)
+	user, err := session.User("@me")
+	if err != nil {
+		logrus.WithError(err).Fatal("could not get information about bot user")
+	}
+	resolveHandler := &discorddnsbot.ResolveHandler{
+		DNSClient:&dns.Client{},
+		DiscordBotUser:user,
+	}
+	resolveHandler.Initialize()
+	session.AddHandler(resolveHandler.Handle)
 	// Wait here until CTRL-C or other term signal is received.
 	fmt.Println("Bot is now running. Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)

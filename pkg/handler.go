@@ -26,9 +26,11 @@ const (
 	// mentionFormat is used to check if it is a valid mention.
 	mentionFormat = "<@%s>"
 	// syntaxFormat is used to hand out a valid syntax to the Discord users.
-	syntaxFormat = "%s <%s> <domain>"
-	// embedErrorColor is the color used for embeds which display errors/invalid formats.
+	syntaxFormat = "@%s <%s> <domain>"
+	// embedErrorColor is the colour used for embeds which display errors/invalid formats.
 	embedErrorColor = 16007990
+	// embedSuccessColor is the colour used for embeds which display a successful DNS response.
+	embedSuccessColor = 5025616
 )
 
 // ResolveHandler is used to handle DNS query requests by Discord users. Its Handle method should be bound to a
@@ -42,6 +44,8 @@ type ResolveHandler struct {
 	//
 	// This allows the handler to correctly react to tags in order to fulfill its function as a DNS resolver.
 	DiscordBotUser *discordgo.User
+	// DNSClient is an instance of the miekg dns client.
+	DNSClient *dns.Client
 	// mentionString contains a string with the format <@DISCORD-ID> to detect request messages.
 	mentionString string
 	// syntax contains a string which represents the syntax used to execute DNS queries.
@@ -59,30 +63,45 @@ func (resolveHandler *ResolveHandler) Initialize() {
 		availableDNSMessageTypes[count] = typeName
 		count++
 	}
-	resolveHandler.syntax = fmt.Sprintf(syntaxFormat, resolveHandler.DiscordBotUser.Mention(), strings.Join(availableDNSMessageTypes, "|"))
+	resolveHandler.syntax = fmt.Sprintf(syntaxFormat, resolveHandler.DiscordBotUser.Username, strings.Join(availableDNSMessageTypes, "|"))
 }
 
 func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, messageCreate *discordgo.MessageCreate) {
-	if !strings.HasPrefix(messageCreate.Content, resolveHandler.mentionString+" ") {
+	// check if the message is not from the bot itself
+	if messageCreate.Author.ID == resolveHandler.DiscordBotUser.ID {
+		return
+	}
+	// check if the message begins with a mention
+	if !strings.HasPrefix(messageCreate.Content, resolveHandler.mentionString) {
 		return
 	}
 	// replace multiple spaces with one
 	trimmedContent := multipleSpaceRegex.ReplaceAllString(messageCreate.Content, " ")
 	// split content after "<@DISCORD-ID> "
-	params := strings.Split(trimmedContent[len(resolveHandler.mentionString)+1:], " ")
+	commandSplit := strings.Split(trimmedContent, " ")
+	// pre-declare all fields to allow a goto statement
+	var fields []*discordgo.MessageEmbedField
+	var ok bool
+	var params []string
+	if len(commandSplit) != 3 {
+		goto syntaxCheck
+	}
+	params = commandSplit[1:]
 	// handle bot mention
-	fields, ok := resolveHandler.handleMention(session, messageCreate, params)
+	fields, ok = resolveHandler.handleMention(session, messageCreate, params)
 	// check result
-	if !ok {
-		_, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
-			Title:  resolveHandler.DiscordBotUser.Username,
-			Color:  embedErrorColor,
-			Fields: fields,
-			Footer: &discordgo.MessageEmbedFooter{Text: resolveHandler.syntax},
-		})
-		if err != nil {
-			logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not send syntax error message")
-		}
+	if ok {
+		return
+	}
+syntaxCheck:
+	_, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
+		Title:  resolveHandler.DiscordBotUser.Username,
+		Color:  embedErrorColor,
+		Fields: fields,
+		Footer: &discordgo.MessageEmbedFooter{Text: resolveHandler.syntax},
+	})
+	if err != nil {
+		logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not send (syntax) error message")
 	}
 }
 
@@ -118,7 +137,7 @@ func (resolveHandler *ResolveHandler) handleMention(session *discordgo.Session, 
 			Inline: true,
 		}}, false
 	}
-	return nil, true
+	return resolveHandler.executeDNSRequest(session, messageCreate, messageType, domainName)
 }
 
 func validateDNSMessageType(messageTypeString string) (messageType uint16, ok bool) {
