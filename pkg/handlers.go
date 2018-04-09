@@ -7,136 +7,132 @@ import (
 	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
+	"time"
 )
 
-const DNSServer = "8.8.8.8:53"
+const (
+	BotName           = "DNS-Bot"
+	DNSServer         = "1.1.1.1:53"
+	errorEmbedColor   = 16007990
+	errorSuccessColor = 5025616
+)
 
 type DNSRequestHandler struct {
 	CommandPrefix string
 	client        *dns.Client
 }
 
+// NewDNSRequestHandler creates a new instance of the DNSRequestHandler and uses a default DNS client.
 func NewDNSRequestHandler(commandPrefix string) *DNSRequestHandler {
-	if commandPrefix[len(commandPrefix)-1:] != " " {
-		commandPrefix += " "
-	}
 	return &DNSRequestHandler{
-		CommandPrefix:commandPrefix,
-		client:&dns.Client{},
+		CommandPrefix: commandPrefix,
+		client:        &dns.Client{},
 	}
 }
 
 // Handle should be bound to a discordgo instance in order to react to DNS request messages.
 func (handler *DNSRequestHandler) Handle(session *discordgo.Session, messageCreate *discordgo.MessageCreate) {
 	// check if message is of a right length
-	if len(messageCreate.Content) <= len(handler.CommandPrefix) {
+	if len(messageCreate.Content) < len(handler.CommandPrefix) {
 		return
 	}
 	// check if message has the right prefix
 	if messageCreate.Content[:len(handler.CommandPrefix)] != handler.CommandPrefix {
 		return
 	}
-	parameters := strings.Split(messageCreate.Content[len(handler.CommandPrefix):], " ")
+	parameters := strings.Split(messageCreate.Content, " ")[1:]
 	if len(parameters) != 2 {
 		handler.sendSyntax(session, messageCreate.ChannelID)
 		return
 	}
-	ok, dnsMessageType := parseDNSMessageType(parameters[0])
+	// check if the provided dns message type is valid (A or AAA)
+	dnsMessageType, ok := handler.validateDNSMessageType(session, messageCreate.ChannelID, parameters[0])
 	if !ok {
-		if _, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
-			Title: "DNS query bot",
-			Fields: []*discordgo.MessageEmbedField{{
-				Name:  "Invalid DNS message type",
-				Value: strconv.Quote(parameters[0]),
-			}},
-			Description: handler.getSyntax(),
-		}); err != nil {
-			logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not send discord invalid dns record type message")
-		}
 		return
 	}
-	if _, ok := dns.IsDomainName(parameters[1]); !ok {
-		if _, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
-			Title: "DNS query bot",
-			Fields: []*discordgo.MessageEmbedField{{
-				Name:  "Invalid domain name",
-				Value: strconv.Quote(parameters[1]),
-			}},
-			Description: handler.getSyntax(),
-		}); err != nil {
-			logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not send discord invalid domain name message")
-		}
+	// check if the provided domain name is valid
+	ok = handler.validateDomainName(session, messageCreate.ChannelID, parameters[1])
+	if !ok {
 		return
 	}
+	// create new message instance
 	message := &dns.Msg{
 		Question: []dns.Question{{
-				Name:   dns.Fqdn(parameters[1]),
-				Qtype:  dnsMessageType,
-				Qclass: dns.ClassINET,
+			Name:   dns.Fqdn(parameters[1]),
+			Qtype:  dnsMessageType,
+			Qclass: dns.ClassINET,
 		}},
 	}
 	message.RecursionDesired = true
+	// execute DNS request
+	response, duration, ok := executeDNSRequest(handler, message, parameters[1], session, messageCreate)
+	if !ok {
+		return
+	}
+	// validate the response code if it is a valid one/successful one
+	ok = handler.validateDomainName(session, messageCreate.ChannelID, parameters[1])
+	if !ok {
+		return
+	}
+	sendDNSResults(response, session, messageCreate, duration)
+}
+
+func sendDNSResults(response *dns.Msg, session *discordgo.Session, messageCreate *discordgo.MessageCreate, duration time.Duration) {
+	responseFields := make([]*discordgo.MessageEmbedField, len(response.Answer))
+	for index, answer := range response.Answer {
+		responseFields[index] = &discordgo.MessageEmbedField{
+			Name:  answer.Header().Name,
+			Value: answer.String(),
+		}
+	}
+	if _, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
+		Title:  BotName,
+		Color:  errorSuccessColor,
+		Fields: responseFields,
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: fmt.Sprintf("Duration of query: %v", duration),
+		},
+	}); err != nil {
+		logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not reply to message")
+	}
+}
+
+func executeDNSRequest(handler *DNSRequestHandler, message *dns.Msg, domainName string, session *discordgo.Session, messageCreate *discordgo.MessageCreate) (*dns.Msg, time.Duration, bool) {
 	response, duration, err := handler.client.Exchange(message, DNSServer)
-	if err != nil {
-		logrus.WithError(err).WithField("domain-name", parameters[1]).Warn("could not execute DNS request")
+	var truncated bool
+	domainName, truncated = validateValueLength(domainName)
+	domainName = strconv.Quote(domainName)
+	if truncated {
+		domainName += maxValueSuffix
+	}
+	if message == nil && err != nil {
+		logrus.WithError(err).WithField("domain-name", domainName).Warn("could not execute DNS request")
 		if _, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
-			Title: "DNS query bot",
+			Title: BotName,
 			Fields: []*discordgo.MessageEmbedField{{
-				Name:  "DNS query error with domain name",
-				Value: strconv.Quote(parameters[1]),
+				Name:  "an error occurred while querying the DNS request for domain name",
+				Value: strconv.Quote(domainName),
 			}},
 		}); err != nil {
 			logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not send discord dns query error message")
 		}
-		return
+		return response, duration, false
 	}
-	if response.Rcode != dns.RcodeSuccess {
-		logrus.WithField("domain-name", parameters[1]).WithField("response-code", response.Rcode).Warn("invalid response code from DNS server")
-		if _, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
-			Title: "DNS query bot",
-			Fields: []*discordgo.MessageEmbedField{{
-				Name:  "DNS query error with domain name",
-				Value: strconv.Quote(parameters[1]),
-			}},
-		}); err != nil {
-			logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not send discord invalid dns response code message")
-		}
-		return
-	}
-	responseFields := make([]*discordgo.MessageEmbedField, len(response.Answer))
-	for index, answer := range response.Answer {
-		responseFields[index] = &discordgo.MessageEmbedField{
-			Name:answer.Header().Name,
-			Value:answer.String(),
-		}
-	}
-	if _, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
-		Title: "DNS query bot",
-		Fields: responseFields,
-		Description:fmt.Sprintf("Got response in %v.", duration),
-	}); err != nil {
-		logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not reply to message")
-	}
-
+	return response, duration, true
 }
 
 func (handler *DNSRequestHandler) getSyntax() string {
-	return fmt.Sprintf("Please use this syntax: %v <A|AAA> <domain>", handler.CommandPrefix)
+	return fmt.Sprintf("Syntax: %v <A|AAAA> <domain>", handler.CommandPrefix)
 }
 
 func (handler *DNSRequestHandler) sendSyntax(session *discordgo.Session, channelID string) {
-	if _, err := session.ChannelMessageSend(channelID, handler.getSyntax()); err != nil {
-		logrus.WithField("channel-id", channelID).WithError(err).Warn("could not send syntax message")
-	}
-}
-
-func parseDNSMessageType(parameter string) (ok bool, dnsMessageType uint16) {
-	switch parameter {
-	case "A":
-		return true, dns.TypeA
-	case "AAA":
-		return true, dns.TypeAAAA
-	default:
-		return false, 0
+	if _, err := session.ChannelMessageSendEmbed(channelID, &discordgo.MessageEmbed{
+		Title: BotName,
+		Color: errorEmbedColor,
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: handler.getSyntax(),
+		},
+	}); err != nil {
+		logrus.WithError(err).WithField("channel-id", channelID).Warn("could not send discord syntax message")
 	}
 }
