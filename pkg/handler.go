@@ -142,7 +142,7 @@ func (resolveHandler *ResolveHandler) handleMention(session *discordgo.Session, 
 			Inline: true,
 		}}, false
 	}
-	return resolveHandler.executeDNSRequest(session, messageCreate, messageType, domainName)
+	return resolveHandler.executeDNSRequest(session, messageCreate, messageType, messageTypeString, domainName)
 }
 
 func validateDNSMessageType(messageTypeString string) (messageType uint16, ok bool) {
