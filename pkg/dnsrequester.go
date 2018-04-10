@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	dNSServer                 = "1.1.1.1:53"
+	dNSServer                 = "1.1.1.1:853"
 	unknownResponseCodeFormat = "unknown response code (%d)"
 	dNSDurationFormat         = "Got answer in %v."
 )

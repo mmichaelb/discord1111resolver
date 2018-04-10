@@ -38,14 +38,21 @@ func main() {
 		logrus.WithError(err).Fatal("could not get information about bot user")
 	}
 	resolveHandler := &discord1111resolver.ResolveHandler{
-		DNSClient:      &dns.Client{},
+		DNSClient: &dns.Client{
+			Net: "tcp-tls", // enable DNS over TLS
+		},
 		DiscordBotUser: user,
 	}
 	resolveHandler.Initialize()
 	session.AddHandler(resolveHandler.Handle)
 	// Wait here until CTRL-C or other term signal is received.
-	fmt.Println("Bot is now running. Press CTRL-C to exit.")
+	logrus.Println("Bot is now running. Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
+	if err := session.Close(); err != nil {
+		logrus.WithError(err).Warn("could not close discord session")
+	}
+	logrus.Info("bye")
+	os.Exit(0)
 }
