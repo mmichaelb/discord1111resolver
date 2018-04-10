@@ -2,14 +2,14 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"github.com/bwmarrin/discordgo"
+	"github.com/miekg/dns"
+	"github.com/mmichaelb/discord1111resolver/pkg"
 	"github.com/sirupsen/logrus"
 	"os"
-	"github.com/bwmarrin/discordgo"
-	"fmt"
-	"github.com/mmichaelb/discorddnsbot/pkg"
 	"os/signal"
 	"syscall"
-	"github.com/miekg/dns"
 )
 
 var applicationName, version, branch, commit string
@@ -38,8 +38,8 @@ func main() {
 		logrus.WithError(err).Fatal("could not get information about bot user")
 	}
 	resolveHandler := &discord1111resolver.ResolveHandler{
-		DNSClient:&dns.Client{},
-		DiscordBotUser:user,
+		DNSClient:      &dns.Client{},
+		DiscordBotUser: user,
 	}
 	resolveHandler.Initialize()
 	session.AddHandler(resolveHandler.Handle)
