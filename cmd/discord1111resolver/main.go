@@ -38,7 +38,9 @@ func main() {
 		logrus.WithError(err).Fatal("could not get information about bot user")
 	}
 	resolveHandler := &discord1111resolver.ResolveHandler{
-		DNSClient:      &dns.Client{},
+		DNSClient: &dns.Client{
+			Net: "tcp-tls", // enable DNS over TLS
+		},
 		DiscordBotUser: user,
 	}
 	resolveHandler.Initialize()
