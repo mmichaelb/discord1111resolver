@@ -6,6 +6,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -59,7 +60,7 @@ func (resolveHandler *ResolveHandler) executeDNSRequest(session *discordgo.Sessi
 	} else {
 		return []*discordgo.MessageEmbedField{{
 			Name:   "Could not find DNS entry for question type",
-			Value:  strconv.Quote(dNSMessageTypeString),
+			Value:  strconv.Quote(strings.ToUpper(dNSMessageTypeString)),
 			Inline: true,
 		}}, false
 	}
