@@ -6,6 +6,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -21,7 +22,7 @@ var dNSResponseCodeMessages = map[int]string{
 	dns.RcodeNameError:     "Non-Existent domain",
 }
 
-func (resolveHandler *ResolveHandler) executeDNSRequest(session *discordgo.Session, messageCreate *discordgo.MessageCreate, dNSMessageType uint16, domain string) (responseFields []*discordgo.MessageEmbedField, ok bool) {
+func (resolveHandler *ResolveHandler) executeDNSRequest(session *discordgo.Session, messageCreate *discordgo.MessageCreate, dNSMessageType uint16, dNSMessageTypeString string, domain string) (responseFields []*discordgo.MessageEmbedField, ok bool) {
 	// create new message instance from the parameter data
 	message := &dns.Msg{
 		Question: []dns.Question{{
@@ -48,12 +49,20 @@ func (resolveHandler *ResolveHandler) executeDNSRequest(session *discordgo.Sessi
 			Inline: true,
 		}}, false
 	}
-	responseFields = make([]*discordgo.MessageEmbedField, len(response.Answer))
-	for index, answer := range response.Answer {
-		responseFields[index] = &discordgo.MessageEmbedField{
-			Name:  answer.Header().Name,
-			Value: answer.String(),
+	if len(response.Answer) > 0 {
+		responseFields = make([]*discordgo.MessageEmbedField, len(response.Answer))
+		for index, answer := range response.Answer {
+			responseFields[index] = &discordgo.MessageEmbedField{
+				Name:  answer.Header().Name,
+				Value: answer.String(),
+			}
 		}
+	} else {
+		return []*discordgo.MessageEmbedField{{
+			Name:   "Could not find DNS entry for question type",
+			Value:  strconv.Quote(strings.ToUpper(dNSMessageTypeString)),
+			Inline: true,
+		}}, false
 	}
 	_, err = session.ChannelMessageSendEmbed(messageCreate.ChannelID, &discordgo.MessageEmbed{
 		Title:  resolveHandler.DiscordBotUser.Username,
