@@ -77,7 +77,7 @@ func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, message
 	}
 	// replace multiple spaces with one
 	trimmedContent := multipleSpaceRegex.ReplaceAllString(messageCreate.Content, " ")
-	// split content after "<@DISCORD-ID> "
+	// split whole command on every space
 	commandSplit := strings.Split(trimmedContent, " ")
 	// pre-declare all fields to allow a goto statement
 	var fields []*discordgo.MessageEmbedField
@@ -86,6 +86,7 @@ func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, message
 	if len(commandSplit) != 3 {
 		goto syntaxCheck
 	}
+	// initiate params (everything after "<@DISCORD-ID> "
 	params = commandSplit[1:]
 	// handle bot mention
 	fields, ok = resolveHandler.handleMention(session, messageCreate, params)
