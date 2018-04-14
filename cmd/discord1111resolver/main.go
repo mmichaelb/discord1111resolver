@@ -52,7 +52,10 @@ func main() {
 	if discordbotsToken != "" {
 		discordbotsUpdateURL = fmt.Sprintf(discordbotsUpdateURL, user.ID)
 		logrus.Info("running discordbots.org update thread in background...")
-		go runDiscordbotsUpdater(session, discordbotsUpdateExitChan)
+		discordbotsUpdater := &discordbotsUpdater{
+			discordSession:session,
+		}
+		go discordbotsUpdater.runDiscordbotsUpdater(session, discordbotsUpdateExitChan)
 	}
 	resolveHandler := &discord1111resolver.ResolveHandler{
 		DNSClient: &dns.Client{
