@@ -27,10 +27,19 @@ const (
 	mentionFormat = "<@%s>"
 	// syntaxFormat is used to hand out a valid syntax to the Discord users.
 	syntaxFormat = "@%s <%s> <domain>"
-	// embedErrorColor is the colour used for embeds which display errors/invalid formats.
+	// embedErrorColor is the color used for embeds which display errors/invalid formats.
 	embedErrorColor = 16007990
-	// embedSuccessColor is the colour used for embeds which display a successful DNS response.
+	// embedSuccessColor is the color used for embeds which display a successful DNS response.
 	embedSuccessColor = 5025616
+	// baseColor is the main color used on the 1.1.1.1 website.
+	baseColor = 14385742
+	// baseURL is the url where more information about the DNS service can be found.
+	baseURL = "https://1.1.1.1/"
+	// embedTitle is the title which is used for every sent message embed.
+	embedTitle = "1.1.1.1 DNS service"
+	// botDescription is the description which is sent if the bot gets tagged.
+	botDescription = "Cloudflare and APNIC offer a fast and secure DNS service which also cares about your privacy.\n" +
+		"This bot allows you to interact with it and execute simple requests."
 )
 
 // ResolveHandler is used to handle DNS query requests by Discord users. Its Handle method should be bound to a
@@ -77,45 +86,49 @@ func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, message
 	}
 	// replace multiple spaces with one
 	trimmedContent := multipleSpaceRegex.ReplaceAllString(messageCreate.Content, " ")
-	// split content after "<@DISCORD-ID> "
+	// split whole command on every space
 	commandSplit := strings.Split(trimmedContent, " ")
 	// pre-declare all fields to allow a goto statement
-	var fields []*discordgo.MessageEmbedField
 	var ok bool
 	var params []string
+	messageEmbed := &discordgo.MessageEmbed{
+		Title: embedTitle,
+		URL:   baseURL,
+		Color: baseColor,
+	}
 	if len(commandSplit) != 3 {
 		goto syntaxCheck
 	}
+	// initiate params (everything after "<@DISCORD-ID> "
 	params = commandSplit[1:]
 	// handle bot mention
-	fields, ok = resolveHandler.handleMention(session, messageCreate, params)
+	ok = resolveHandler.handleMention(messageEmbed, params)
 	// check result
 	if ok {
-		return
+		messageEmbed.Color = embedSuccessColor
+	} else {
+		messageEmbed.Color = embedErrorColor
 	}
 syntaxCheck:
-	syntaxEmbed := &discordgo.MessageEmbed{
-		Title:  resolveHandler.DiscordBotUser.Username,
-		Color:  embedErrorColor,
-		Fields: fields,
+	var fieldsNotSet = messageEmbed.Fields == nil || len(messageEmbed.Fields) == 0
+	if fieldsNotSet {
+		messageEmbed.Description = botDescription
 	}
-	if fields == nil || len(fields) == 0 {
-		syntaxEmbed.Description = resolveHandler.syntax
-	} else {
-		syntaxEmbed.Footer = &discordgo.MessageEmbedFooter{Text: resolveHandler.syntax}
+	if !ok || fieldsNotSet {
+		messageEmbed.Footer = &discordgo.MessageEmbedFooter{Text: resolveHandler.syntax}
 	}
-	_, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, syntaxEmbed)
+	_, err := session.ChannelMessageSendEmbed(messageCreate.ChannelID, messageEmbed)
 	if err != nil {
-		logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not send (syntax) error message")
+		logrus.WithError(err).WithField("channel-id", messageCreate.ChannelID).Warn("could not send discord message")
 	}
 }
 
 // handleMention is an internal function which is called if the message starts with "<@DISCORD-ID> ". It returns whether
 // the execution was a success and if not, which fields should be printed withing the error message.
-func (resolveHandler *ResolveHandler) handleMention(session *discordgo.Session, messageCreate *discordgo.MessageCreate, params []string) (fields []*discordgo.MessageEmbedField, ok bool) {
+func (resolveHandler *ResolveHandler) handleMention(messageEmbed *discordgo.MessageEmbed, params []string) (ok bool) {
 	// check params length
 	if len(params) != 2 {
-		return nil, false
+		return false
 	}
 	// validate the DNS message type parameter
 	var messageType uint16
@@ -124,11 +137,12 @@ func (resolveHandler *ResolveHandler) handleMention(session *discordgo.Session, 
 	if !ok {
 		trimDiscordFieldValue(&messageTypeString)
 		// the user specified an invalid DNS message type
-		return []*discordgo.MessageEmbedField{{
-			Name:   "Invalid DNS message type",
+		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
+			Name:   "Invalid DNS message type:",
 			Value:  strconv.Quote(messageTypeString),
 			Inline: true,
-		}}, false
+		}}
+		return false
 	}
 	// validate the domain name
 	domainName := params[1]
@@ -136,13 +150,14 @@ func (resolveHandler *ResolveHandler) handleMention(session *discordgo.Session, 
 	if !ok {
 		trimDiscordFieldValue(&domainName)
 		// the user specified an invalid domain name
-		return []*discordgo.MessageEmbedField{{
-			Name:   "Invalid domain name",
+		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
+			Name:   "Invalid domain name:",
 			Value:  strconv.Quote(domainName),
 			Inline: true,
-		}}, false
+		}}
+		return false
 	}
-	return resolveHandler.executeDNSRequest(session, messageCreate, messageType, messageTypeString, domainName)
+	return resolveHandler.executeDNSRequest(messageEmbed, messageType, messageTypeString, domainName)
 }
 
 func validateDNSMessageType(messageTypeString string) (messageType uint16, ok bool) {
