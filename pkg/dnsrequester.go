@@ -37,7 +37,7 @@ func (resolveHandler *ResolveHandler) executeDNSRequest(messageEmbed *discordgo.
 	if err != nil {
 		logrus.WithError(err).Warn("could not execute DNS request")
 		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
-			Name:   "Unknown error while executing the DNS request",
+			Name:   "Unknown error while executing the DNS request:",
 			Value:  strconv.Quote(err.Error()),
 			Inline: true,
 		}}
@@ -45,7 +45,7 @@ func (resolveHandler *ResolveHandler) executeDNSRequest(messageEmbed *discordgo.
 	}
 	if errorMessage, dNSResponseCodeOk := validateDNSResponseCode(response.Rcode); !dNSResponseCodeOk {
 		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
-			Name:   "The DNS server returned an non-successful response code",
+			Name:   "The DNS server returned an non-successful response code:",
 			Value:  errorMessage,
 			Inline: true,
 		}}
@@ -61,7 +61,7 @@ func (resolveHandler *ResolveHandler) executeDNSRequest(messageEmbed *discordgo.
 		}
 	} else {
 		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
-			Name:   "Could not find DNS entry for question type",
+			Name:   "Could not find DNS entry for question type:",
 			Value:  strconv.Quote(strings.ToUpper(dNSMessageTypeString)),
 			Inline: true,
 		}}

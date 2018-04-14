@@ -89,7 +89,6 @@ func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, message
 	// split whole command on every space
 	commandSplit := strings.Split(trimmedContent, " ")
 	// pre-declare all fields to allow a goto statement
-	var fields []*discordgo.MessageEmbedField
 	var ok bool
 	var params []string
 	messageEmbed := &discordgo.MessageEmbed{
@@ -111,7 +110,7 @@ func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, message
 		messageEmbed.Color = embedErrorColor
 	}
 syntaxCheck:
-	var fieldsNotSet = fields == nil || len(fields) == 0
+	var fieldsNotSet = messageEmbed.Fields == nil || len(messageEmbed.Fields) == 0
 	if fieldsNotSet {
 		messageEmbed.Description = botDescription
 	}
@@ -139,7 +138,7 @@ func (resolveHandler *ResolveHandler) handleMention(messageEmbed *discordgo.Mess
 		trimDiscordFieldValue(&messageTypeString)
 		// the user specified an invalid DNS message type
 		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
-			Name:   "Invalid DNS message type",
+			Name:   "Invalid DNS message type:",
 			Value:  strconv.Quote(messageTypeString),
 			Inline: true,
 		}}
@@ -152,7 +151,7 @@ func (resolveHandler *ResolveHandler) handleMention(messageEmbed *discordgo.Mess
 		trimDiscordFieldValue(&domainName)
 		// the user specified an invalid domain name
 		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
-			Name:   "Invalid domain name",
+			Name:   "Invalid domain name:",
 			Value:  strconv.Quote(domainName),
 			Inline: true,
 		}}
