@@ -53,7 +53,7 @@ func main() {
 		discordbotsUpdateURL = fmt.Sprintf(discordbotsUpdateURL, user.ID)
 		logrus.Info("running discordbots.org update thread in background...")
 		discordbotsUpdater := &discordbotsUpdater{
-			discordSession:session,
+			discordSession: session,
 		}
 		go discordbotsUpdater.runDiscordbotsUpdater(session, discordbotsUpdateExitChan)
 	}
@@ -70,7 +70,7 @@ func main() {
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
-	discordbotsUpdateExitChan <- int8(0)
+	discordbotsUpdateExitChan <- struct{}{}
 	if err := session.Close(); err != nil {
 		logrus.WithError(err).Warn("could not close discord session")
 	}
