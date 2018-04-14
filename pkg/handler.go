@@ -35,6 +35,11 @@ const (
 	baseColor = 14385742
 	// baseURL is the url where more information about the DNS service can be found.
 	baseURL = "https://1.1.1.1/"
+	// embedTitle is the title which is used for every sent message embed.
+	embedTitle = "1.1.1.1 DNS service"
+	// botDescription is the description which is sent if the bot gets tagged.
+	botDescription = "Cloudflare and APNIC offer a fast and secure DNS service which also cares about your privacy.\n" +
+		"This bot allows you to interact with it and execute simple requests."
 )
 
 // ResolveHandler is used to handle DNS query requests by Discord users. Its Handle method should be bound to a
@@ -88,7 +93,7 @@ func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, message
 	var ok bool
 	var params []string
 	messageEmbed := &discordgo.MessageEmbed{
-		Title: "1.1.1.1 DNS service",
+		Title: embedTitle,
 		URL:   baseURL,
 		Color: baseColor,
 	}
@@ -108,8 +113,7 @@ func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, message
 syntaxCheck:
 	var fieldsNotSet = fields == nil || len(fields) == 0
 	if fieldsNotSet {
-		messageEmbed.Description = "Cloudflare and APNIC offer a fast and secure DNS service which also cares about your privacy.\n" +
-			"This bot allows you to interact with it and execute simple requests."
+		messageEmbed.Description = botDescription
 	}
 	if !ok || fieldsNotSet {
 		messageEmbed.Footer = &discordgo.MessageEmbedFooter{Text: resolveHandler.syntax}
