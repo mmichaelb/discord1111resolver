@@ -15,12 +15,14 @@ import (
 var applicationName, version, branch, commit string
 
 var discordToken string
+var discordbotsToken string
 
 func main() {
 	logrus.WithField("name", applicationName).WithField("version", version).WithField("branch", branch).WithField("commit", commit).Print("starting application...")
 	flag.StringVar(&discordToken, "token", "", "The Discord Bot token which should be used to authenticate with the Discord API.")
+	flag.StringVar(&discordbotsToken, "discordbotstoken", "", "The discordbots.org token which is used to update the bot's stats.")
 	flag.Parse()
-	// check if a discord API token is provided
+	// check if a discord API token is available
 	if discordToken == "" {
 		logrus.Print("no Discord token provided")
 		flag.PrintDefaults()
