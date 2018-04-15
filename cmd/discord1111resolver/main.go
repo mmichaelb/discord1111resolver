@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-var discordbotsUpdateURL = "https://discordbots.org/api/bots/%d/stats"
+var discordbotsUpdateURL = "https://discordbots.org/api/bots/%s/stats"
 
 var applicationName, version, branch, commit string
 
@@ -79,7 +79,7 @@ func main() {
 }
 
 type discordbotsUpdater struct {
-	*http.Client
+	http.Client
 	discordSession *discordgo.Session
 }
 
