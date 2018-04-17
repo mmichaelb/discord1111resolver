@@ -75,6 +75,7 @@ func (resolveHandler *ResolveHandler) Initialize() {
 	resolveHandler.syntax = fmt.Sprintf(syntaxFormat, resolveHandler.DiscordBotUser.Username, strings.Join(availableDNSMessageTypes, "|"))
 }
 
+// Handle handles triggered events of created messages.
 func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, messageCreate *discordgo.MessageCreate) {
 	// check if the message is not from the bot itself
 	if messageCreate.Author.ID == resolveHandler.DiscordBotUser.ID {
@@ -124,7 +125,7 @@ syntaxCheck:
 }
 
 // handleMention is an internal function which is called if the message starts with "<@DISCORD-ID> ". It returns whether
-// the execution was a success and if not, which fields should be printed withing the error message.
+// the execution was a success and if not, which fields should be printed within the error message.
 func (resolveHandler *ResolveHandler) handleMention(messageCreate *discordgo.MessageCreate, messageEmbed *discordgo.MessageEmbed, params []string) (ok bool) {
 	// check params length
 	if len(params) != 2 {
