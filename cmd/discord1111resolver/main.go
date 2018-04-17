@@ -48,8 +48,9 @@ func main() {
 		logrus.WithError(err).Fatal("could not get information about bot user")
 	}
 	// check if a discordbots.org API token is available
-	discordbotsUpdateExitChan := make(chan interface{})
+	var discordbotsUpdateExitChan chan interface{}
 	if discordbotsToken != "" {
+		discordbotsUpdateExitChan = make(chan interface{})
 		discordbotsUpdateURL = fmt.Sprintf(discordbotsUpdateURL, user.ID)
 		logrus.Info("running discordbots.org update thread in background...")
 		discordbotsUpdater := &discordbotsUpdater{
@@ -70,7 +71,9 @@ func main() {
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
-	discordbotsUpdateExitChan <- struct{}{}
+	if discordbotsUpdateExitChan != nil {
+		discordbotsUpdateExitChan <- struct{}{}
+	}
 	if err := session.Close(); err != nil {
 		logrus.WithError(err).Warn("could not close discord session")
 	}
