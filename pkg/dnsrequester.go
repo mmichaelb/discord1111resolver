@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
+	"golang.org/x/net/idna"
 )
 
 const (
@@ -22,11 +23,26 @@ var dNSResponseCodeMessages = map[int]string{
 	dns.RcodeNameError:     "Non-Existent domain",
 }
 
+var profile = idna.New() //PunyCode resolver profile
+
 func (resolveHandler *ResolveHandler) executeDNSRequest(messageEmbed *discordgo.MessageEmbed, dNSMessageType uint16, dNSMessageTypeString string, domain string) (ok bool) {
+	// encode punycode
+	punycodeDomain, err := profile.ToASCII(domain)
+
+	if err != nil {
+		logrus.WithError(err).Warn("could not decode punycode to unicode")
+		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
+			Name:   "An error occurred while decoding a punycode domain:",
+			Value:  strconv.Quote(err.Error()),
+			Inline: true,
+		}}
+		return false
+	}
+
 	// create new message instance from the parameter data
 	message := &dns.Msg{
 		Question: []dns.Question{{
-			Name:   dns.Fqdn(domain),
+			Name:   dns.Fqdn(punycodeDomain),
 			Qtype:  dNSMessageType,
 			Qclass: dns.ClassINET,
 		}},
