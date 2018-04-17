@@ -75,6 +75,7 @@ func (resolveHandler *ResolveHandler) Initialize() {
 	resolveHandler.syntax = fmt.Sprintf(syntaxFormat, resolveHandler.DiscordBotUser.Username, strings.Join(availableDNSMessageTypes, "|"))
 }
 
+// Handle handles triggered events of created messages.
 func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, messageCreate *discordgo.MessageCreate) {
 	// check if the message is not from the bot itself
 	if messageCreate.Author.ID == resolveHandler.DiscordBotUser.ID {
@@ -102,7 +103,7 @@ func (resolveHandler *ResolveHandler) Handle(session *discordgo.Session, message
 	// initiate params (everything after "<@DISCORD-ID> "
 	params = commandSplit[1:]
 	// handle bot mention
-	ok = resolveHandler.handleMention(messageEmbed, params)
+	ok = resolveHandler.handleMention(messageCreate, messageEmbed, params)
 	// check result
 	if ok {
 		messageEmbed.Color = embedSuccessColor
@@ -124,8 +125,8 @@ syntaxCheck:
 }
 
 // handleMention is an internal function which is called if the message starts with "<@DISCORD-ID> ". It returns whether
-// the execution was a success and if not, which fields should be printed withing the error message.
-func (resolveHandler *ResolveHandler) handleMention(messageEmbed *discordgo.MessageEmbed, params []string) (ok bool) {
+// the execution was a success and if not, which fields should be printed within the error message.
+func (resolveHandler *ResolveHandler) handleMention(messageCreate *discordgo.MessageCreate, messageEmbed *discordgo.MessageEmbed, params []string) (ok bool) {
 	// check params length
 	if len(params) != 2 {
 		return false
@@ -157,7 +158,19 @@ func (resolveHandler *ResolveHandler) handleMention(messageEmbed *discordgo.Mess
 		}}
 		return false
 	}
-	return resolveHandler.executeDNSRequest(messageEmbed, messageType, messageTypeString, domainName)
+	var shortenedDomainName string
+	if logrus.GetLevel() > logrus.DebugLevel {
+		if len(domainName) > 16 {
+			shortenedDomainName = domainName[:16]
+		}
+		logrus.WithField("domain-name", shortenedDomainName).WithField("channel-id", messageCreate.ChannelID).
+			WithField("message-id", messageCreate.ID).Debug("requesting DNS entry...")
+	}
+	ok = resolveHandler.executeDNSRequest(messageEmbed, messageType, messageTypeString, domainName)
+	if logrus.GetLevel() > logrus.DebugLevel {
+		logrus.WithField("id", messageCreate.ID).WithField("ok", ok).Debug("result of DNS request.")
+	}
+	return
 }
 
 func validateDNSMessageType(messageTypeString string) (messageType uint16, ok bool) {
