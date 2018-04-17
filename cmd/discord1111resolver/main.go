@@ -33,7 +33,7 @@ func main() {
 	flag.DurationVar(&discordbotsUpdateInterval, "discordbotsinterval", time.Minute*30, "The interval in which an update is sent to the discordbots.org API.")
 	flag.Parse()
 	// parse level from user input
-	level, err :=  logrus.ParseLevel(stringLevel)
+	level, err := logrus.ParseLevel(stringLevel)
 	if err != nil {
 		logrus.WithError(err).WithField("user-level", stringLevel).Fatal("could not find level")
 	}
@@ -45,17 +45,21 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
+	logrus.Debug("connecting to Discord API...")
 	session, err := discordgo.New(fmt.Sprintf("Bot %v", discordToken))
 	if err != nil {
 		logrus.WithError(err).Fatal("could not connect to Discord API")
 	}
+	logrus.Debug("opening Discord session...")
 	if err := session.Open(); err != nil {
 		logrus.WithError(err).Fatal("could not open Discord session")
 	}
+	logrus.Debug("resolving information about the bot instance...")
 	user, err := session.User("@me")
 	if err != nil {
 		logrus.WithError(err).Fatal("could not get information about bot user")
 	}
+	logrus.Debug("checking if discordbots.org token is provided and whether continuous updates should be sent...")
 	// check if a discordbots.org API token is available
 	var discordbotsUpdateExitChan chan interface{}
 	if discordbotsToken != "" {
@@ -67,6 +71,7 @@ func main() {
 		}
 		go discordbotsUpdater.runDiscordbotsUpdater(session, discordbotsUpdateExitChan)
 	}
+	logrus.Debug("initializing DNS resolve handler...")
 	resolveHandler := &discord1111resolver.ResolveHandler{
 		DNSClient: &dns.Client{
 			Net: "tcp-tls", // enable DNS over TLS
@@ -76,13 +81,15 @@ func main() {
 	resolveHandler.Initialize()
 	session.AddHandler(resolveHandler.Handle)
 	// Wait here until CTRL-C or other term signal is received.
-	logrus.Println("Bot is now running. Press CTRL-C to exit.")
+	logrus.Info("Bot is now running. Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
 	if discordbotsUpdateExitChan != nil {
+		logrus.Debug("stopping discordbots.org update task...")
 		discordbotsUpdateExitChan <- struct{}{}
 	}
+	logrus.Debug("closing Discord session...")
 	if err := session.Close(); err != nil {
 		logrus.WithError(err).Warn("could not close discord session")
 	}
@@ -101,6 +108,7 @@ func (discordbotsUpdater *discordbotsUpdater) runDiscordbotsUpdater(session *dis
 		case <-exitChannel:
 			return
 		case <-time.After(discordbotsUpdateInterval):
+			logrus.Debug("updating discordbots.org statistics...")
 			discordbotsUpdater.updateDiscordbotsAPI(session)
 			break
 		}
@@ -151,4 +159,5 @@ func (discordbotsUpdater *discordbotsUpdater) updateDiscordbotsAPI(session *disc
 	if resp.StatusCode != http.StatusOK {
 		logrus.WithField("http-status-code", resp.StatusCode).Warn("received an unexpected http status code")
 	}
+	logrus.Debug("successfully updated discordbots.org statistics.")
 }
