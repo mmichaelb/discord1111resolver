@@ -23,13 +23,22 @@ var applicationName, version, branch, commit string
 var discordToken string
 var discordbotsToken string
 var discordbotsUpdateInterval time.Duration
+var stringLevel string
 
 func main() {
 	logrus.WithField("name", applicationName).WithField("version", version).WithField("branch", branch).WithField("commit", commit).Print("starting application...")
+	flag.StringVar(&stringLevel, "level", "info", "The logging level which should be used for log outputs.")
 	flag.StringVar(&discordToken, "token", "", "The Discord Bot token which should be used to authenticate with the Discord API.")
 	flag.StringVar(&discordbotsToken, "discordbotstoken", "", "The discordbots.org token which is used to update the bot's stats.")
 	flag.DurationVar(&discordbotsUpdateInterval, "discordbotsinterval", time.Minute*30, "The interval in which an update is sent to the discordbots.org API.")
 	flag.Parse()
+	// parse level from user input
+	level, err :=  logrus.ParseLevel(stringLevel)
+	if err != nil {
+		logrus.WithError(err).WithField("user-level", stringLevel).Fatal("could not find level")
+	}
+	// set logrus level
+	logrus.SetLevel(level)
 	// check if a discord API token is available
 	if discordToken == "" {
 		logrus.Warn("no Discord API token provided")
