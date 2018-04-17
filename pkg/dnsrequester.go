@@ -5,15 +5,16 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/idna"
 	"strconv"
 	"strings"
-	"golang.org/x/net/idna"
 )
 
 const (
 	dNSServer                 = "1.1.1.1:853"
 	unknownResponseCodeFormat = "unknown response code (%d)"
 	dNSDurationFormat         = "Got answer in %v."
+	dNSAnswerValueFormat      = "%s - `%s`"
 )
 
 // dNSResponseCodeMessages contains DNS response codes and fitting error messages
@@ -28,9 +29,8 @@ var profile = idna.New() //PunyCode resolver profile
 func (resolveHandler *ResolveHandler) executeDNSRequest(messageEmbed *discordgo.MessageEmbed, dNSMessageType uint16, dNSMessageTypeString string, domain string) (ok bool) {
 	// encode punycode
 	punycodeDomain, err := profile.ToASCII(domain)
-
 	if err != nil {
-		logrus.WithError(err).Warn("could not decode punycode to unicode")
+		logrus.WithError(err).Warn("could not encode unicode to punycode")
 		messageEmbed.Fields = []*discordgo.MessageEmbedField{{
 			Name:   "An error occurred while decoding a punycode domain:",
 			Value:  strconv.Quote(err.Error()),
@@ -38,7 +38,6 @@ func (resolveHandler *ResolveHandler) executeDNSRequest(messageEmbed *discordgo.
 		}}
 		return false
 	}
-
 	// create new message instance from the parameter data
 	message := &dns.Msg{
 		Question: []dns.Question{{
@@ -71,8 +70,8 @@ func (resolveHandler *ResolveHandler) executeDNSRequest(messageEmbed *discordgo.
 		messageEmbed.Fields = make([]*discordgo.MessageEmbedField, len(response.Answer))
 		for index, answer := range response.Answer {
 			messageEmbed.Fields[index] = &discordgo.MessageEmbedField{
-				Name:  answer.Header().Name,
-				Value: answer.String(),
+				Name:  domain,
+				Value: parseDNSAnswer(answer),
 			}
 		}
 	} else {
@@ -85,6 +84,20 @@ func (resolveHandler *ResolveHandler) executeDNSRequest(messageEmbed *discordgo.
 	}
 	messageEmbed.Footer = &discordgo.MessageEmbedFooter{Text: fmt.Sprintf(dNSDurationFormat, duration)}
 	return true
+}
+
+func parseDNSAnswer(answer dns.RR) string {
+	switch answerType := interface{}(answer).(type) {
+	case *dns.A:
+		return fmt.Sprintf(dNSAnswerValueFormat, "A", answerType.A.String())
+	case *dns.AAAA:
+		return fmt.Sprintf(dNSAnswerValueFormat, "AAAA", answerType.AAAA.String())
+	case *dns.CNAME:
+		return fmt.Sprintf(dNSAnswerValueFormat, "CNAME", answerType.Target)
+	default:
+		logrus.WithField("answer-type", fmt.Sprintf("%T", answerType)).Warn("could not parse answer type")
+		return "invalid answer type"
+	}
 }
 
 func validateDNSResponseCode(dNSResponseCode int) (errorMessage string, ok bool) {
