@@ -1,5 +1,5 @@
 APPLICATION_NAME = discord1111resolver
-VERSION = 0.0.1
+VERSION = 0.7.0
 BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
 COMMIT = $(shell git rev-parse HEAD)
 
